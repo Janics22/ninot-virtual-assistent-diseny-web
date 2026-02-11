@@ -1,0 +1,85 @@
+
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Code Pet - Auth</title>
+  <link rel="stylesheet" href="popup.css">
+</head>
+<body>
+  <div class="container">
+    <div class="header">
+      <div class="logo">🐾</div>
+      <h1>Code Pet</h1>
+      <p>Tu asistente de análisis web</p>
+    </div>
+
+    <div id="auth-view" class="view">
+      <div class="tabs">
+        <button class="tab active" data-tab="login">Iniciar Sesión</button>
+        <button class="tab" data-tab="register">Registrarse</button>
+      </div>
+
+      <form id="login-form" class="auth-form">
+        <div class="form-group">
+          <label>Email</label>
+          <input type="email" id="login-email" required>
+        </div>
+        <div class="form-group">
+          <label>Contraseña</label>
+          <input type="password" id="login-password" required>
+        </div>
+        <button type="submit" class="btn-primary">Iniciar Sesión</button>
+      </form>
+
+      <form id="register-form" class="auth-form hidden">
+        <div class="form-group">
+          <label>Email</label>
+          <input type="email" id="register-email" required>
+        </div>
+        <div class="form-group">
+          <label>Contraseña</label>
+          <input type="password" id="register-password" required>
+        </div>
+        <button type="submit" class="btn-primary">Registrarse</button>
+      </form>
+
+      <div id="error-message" class="error hidden"></div>
+    </div>
+
+    <div id="dashboard-view" class="view hidden">
+      <div class="user-info">
+        <div class="avatar">👤</div>
+        <div class="user-details">
+          <div id="user-email" class="email"></div>
+          <div id="user-plan" class="plan">Plan Gratuito</div>
+        </div>
+      </div>
+
+      <div class="plan-section">
+        <h3>Mejora a Premium</h3>
+        <div class="features">
+          <div class="feature">✨ Análisis con IA avanzada</div>
+          <div class="feature">🎯 Sugerencias personalizadas</div>
+          <div class="feature">📊 Informes detallados</div>
+          <div class="feature">🚀 Análisis ilimitados</div>
+        </div>
+        <div class="price">$9.99/mes</div>
+        <button id="subscribe-btn" class="btn-premium">Suscribirse a Premium</button>
+      </div>
+
+      <button id="logout-btn" class="btn-secondary">Cerrar Sesión</button>
+    </div>
+
+    <div id="premium-view" class="view hidden">
+      <div class="success-icon">✨</div>
+      <h2>¡Eres Premium!</h2>
+      <p>Disfruta de análisis avanzados con IA</p>
+      <button id="back-to-dashboard" class="btn-secondary">Volver al Panel</button>
+    </div>
+  </div>
+
+  <script src="popup.js"></script>
+</body>
+</html>
