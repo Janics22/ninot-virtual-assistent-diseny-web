@@ -11,11 +11,19 @@ let isVisible = false;
 
 let petX = window.innerWidth - 150;
 let petY = window.innerHeight - 150;
-let velocityX = 2;
-let velocityY = 1.5;
 let isDragging = false;
 let dragOffsetX = 0;
 let dragOffsetY = 0;
+
+// Variables para seguimiento de mirada
+let mouseX = window.innerWidth / 2;
+let mouseY = window.innerHeight / 2;
+let eyePupils = [];
+
+// Variables para transición de color
+let currentColor = { r: 111/255, g: 185/255, b: 111/255 }; // Verde inicial
+let targetColor = { r: 111/255, g: 185/255, b: 111/255 };
+let particles = [];
 
 // NO inicializar automáticamente, esperar mensaje del background
 // Escuchar mensajes del background
@@ -50,6 +58,9 @@ function init() {
   
   isVisible = true;
   showWelcomeMessage();
+  
+  // Iniciar seguimiento de cursor GLOBAL
+  initMouseTracking();
 }
 
 function removePet() {
@@ -77,6 +88,7 @@ function removePet() {
   
   document.removeEventListener('mousemove', handleMouseMove);
   document.removeEventListener('mouseup', handleMouseUp);
+  document.removeEventListener('mousemove', trackCursor);
   
   isVisible = false;
   chrome.runtime.sendMessage({ action: 'petRemoved' });
@@ -160,9 +172,6 @@ function createPetOverlay3D() {
   
   // Inicializar Three.js
   initThreeJS();
-  
-  // Iniciar movimiento flotante
-  startFloatingMovement();
 }
 
 function handleMouseDown(e) {
@@ -170,7 +179,9 @@ function handleMouseDown(e) {
   dragOffsetX = e.clientX - petX;
   dragOffsetY = e.clientY - petY;
   petOverlay.style.cursor = 'grabbing';
+  petOverlay.classList.add('moving');
   e.stopPropagation();
+  e.preventDefault();
 }
 
 function handleMouseMove(e) {
@@ -191,9 +202,7 @@ function handleMouseUp() {
   if (isDragging) {
     isDragging = false;
     petOverlay.style.cursor = 'grab';
-    // Reiniciar velocidad aleatoria
-    velocityX = (Math.random() - 0.5) * 3;
-    velocityY = (Math.random() - 0.5) * 3;
+    petOverlay.classList.remove('moving');
   }
 }
 
@@ -201,30 +210,6 @@ function handlePetClick(e) {
   if (!isDragging) {
     togglePanel();
   }
-}
-
-function startFloatingMovement() {
-  setInterval(() => {
-    if (!isDragging) {
-      // Actualizar posición
-      petX += velocityX;
-      petY += velocityY;
-      
-      // Rebotar en los bordes
-      if (petX <= 0 || petX >= window.innerWidth - 120) {
-        velocityX *= -1;
-        petX = Math.max(0, Math.min(window.innerWidth - 120, petX));
-      }
-      
-      if (petY <= 0 || petY >= window.innerHeight - 120) {
-        velocityY *= -1;
-        petY = Math.max(0, Math.min(window.innerHeight - 120, petY));
-      }
-      
-      petOverlay.style.left = `${petX}px`;
-      petOverlay.style.top = `${petY}px`;
-    }
-  }, 16); // ~60fps
 }
 
 // Actualizar posición al redimensionar ventana
@@ -297,9 +282,14 @@ function createPet3D() {
     new THREE.MeshPhongMaterial({ color: 0x000000 })
   );
   leftEyePupil.position.set(-0.35, 0.3, 1.05);
+  leftEyePupil.userData.isLeftPupil = true;
+  leftEyePupil.userData.baseX = -0.35;
+  leftEyePupil.userData.baseY = 0.3;
+  leftEyePupil.userData.baseZ = 1.05;
   
   eyes.add(leftEyeWhite);
   eyes.add(leftEyePupil);
+  eyePupils.push(leftEyePupil);
   
   // Right eye
   const rightEyeWhite = new THREE.Mesh(
@@ -313,9 +303,14 @@ function createPet3D() {
     new THREE.MeshPhongMaterial({ color: 0x000000 })
   );
   rightEyePupil.position.set(0.35, 0.3, 1.05);
+  rightEyePupil.userData.isLeftPupil = false;
+  rightEyePupil.userData.baseX = 0.35;
+  rightEyePupil.userData.baseY = 0.3;
+  rightEyePupil.userData.baseZ = 1.05;
   
   eyes.add(rightEyeWhite);
   eyes.add(rightEyePupil);
+  eyePupils.push(rightEyePupil);
   
   petGroup.add(eyes);
   
@@ -353,7 +348,9 @@ function createParticles(petGroup) {
     particle.position.set(pos[0], pos[1], pos[2]);
     particle.userData.originalY = pos[1];
     particle.userData.floatOffset = Math.random() * Math.PI * 2;
+    particle.userData.isParticle = true; // Marcar como partícula
     petGroup.add(particle);
+    particles.push(particle); // Guardar referencia
   });
 }
 
@@ -428,6 +425,90 @@ function createAlertMouth() {
   mouth.add(mouthCircle);
 }
 
+// ============================================
+// SEGUIMIENTO DE MIRADA GLOBAL
+// ============================================
+function initMouseTracking() {
+  // Listener GLOBAL en document para capturar movimiento del cursor en toda la página
+  document.addEventListener('mousemove', trackCursor, { passive: true, capture: true });
+}
+
+function trackCursor(e) {
+  // Capturar posición del cursor en toda la ventana
+  mouseX = e.clientX;
+  mouseY = e.clientY;
+}
+
+function updateEyeTracking() {
+  if (!petOverlay || eyePupils.length === 0) return;
+  
+  // Calcular centro del muñeco en la pantalla
+  const petCenterX = petX + 60; // mitad del ancho (120/2)
+  const petCenterY = petY + 60; // mitad del alto (120/2)
+  
+  // Vector hacia el cursor
+  const deltaX = mouseX - petCenterX;
+  const deltaY = mouseY - petCenterY;
+  const distance = Math.sqrt(deltaX * deltaX + deltaY * deltaY);
+  
+  // Normalizar y limitar movimiento
+  const maxMovement = 0.08; // Máximo desplazamiento de la pupila
+  const normalizedX = distance > 0 ? (deltaX / distance) * maxMovement : 0;
+  const normalizedY = distance > 0 ? -(deltaY / distance) * maxMovement : 0; // Invertir Y
+  
+  // Actualizar cada pupila con suavizado
+  eyePupils.forEach(pupil => {
+    const targetX = pupil.userData.baseX + normalizedX;
+    const targetY = pupil.userData.baseY + normalizedY;
+    const targetZ = pupil.userData.baseZ;
+    
+    // Interpolación suave (lerp)
+    const lerpFactor = 0.1;
+    pupil.position.x += (targetX - pupil.position.x) * lerpFactor;
+    pupil.position.y += (targetY - pupil.position.y) * lerpFactor;
+    pupil.position.z = targetZ;
+  });
+}
+
+// ============================================
+// TRANSICIÓN GRADUAL DE COLOR
+// ============================================
+function updateColorTransition() {
+  const lerpSpeed = 0.02; // Velocidad de transición (más bajo = más suave)
+  
+  // Interpolar color actual hacia color objetivo
+  currentColor.r += (targetColor.r - currentColor.r) * lerpSpeed;
+  currentColor.g += (targetColor.g - currentColor.g) * lerpSpeed;
+  currentColor.b += (targetColor.b - currentColor.b) * lerpSpeed;
+  
+  // Aplicar color al cuerpo
+  if (petMesh) {
+    petMesh.material.color.setRGB(currentColor.r, currentColor.g, currentColor.b);
+  }
+  
+  // Aplicar color a las partículas
+  particles.forEach(particle => {
+    particle.material.color.setRGB(currentColor.r, currentColor.g, currentColor.b);
+  });
+}
+
+function setTargetColorFromScore(avgScore) {
+  // Colores tipo semáforo (RGB normalizado 0-1)
+  if (avgScore >= 80) {
+    // Verde (semáforo)
+    targetColor = { r: 0/255, g: 200/255, b: 0/255 }; 
+  } else if (avgScore >= 60) {
+    // Amarillo
+    targetColor = { r: 255/255, g: 215/255, b: 0/255 };
+  } else if (avgScore >= 40) {
+    // Naranja
+    targetColor = { r: 255/255, g: 140/255, b: 0/255 };
+  } else {
+    // Rojo
+    targetColor = { r: 220/255, g: 0/255, b: 0/255 };
+  }
+}
+
 function animate() {
   animationId = requestAnimationFrame(animate);
   
@@ -439,7 +520,7 @@ function animate() {
     petGroup.rotation.y = Math.sin(time * 0.5) * 0.1;
     petGroup.rotation.x = Math.sin(time * 0.3) * 0.05;
     
-    // Floating animation
+    // Floating animation (solo para el modelo 3D, no para la posición en pantalla)
     petGroup.position.y = Math.sin(time * 2) * 0.1;
     
     // Animate particles
@@ -450,6 +531,12 @@ function animate() {
       }
     });
   }
+  
+  // Actualizar seguimiento de mirada (se ejecuta en cada frame)
+  updateEyeTracking();
+  
+  // Actualizar transición de color
+  updateColorTransition();
   
   renderer.render(scene, camera);
 }
@@ -462,22 +549,20 @@ function updatePetMood(scores) {
   
   if (!petGroup) return;
   
-  const bodyMaterial = petGroup.children[0].material;
+  // Establecer color objetivo basado en puntuación (transición gradual)
+  setTargetColorFromScore(avgScore);
   
+  // Actualizar boca según puntuación
   if (avgScore >= 80) {
-    bodyMaterial.color.setHex(0x6fb96f); // Green
     createHappyMouth();
     petTooltip.textContent = '¡Excelente! 😊';
   } else if (avgScore >= 60) {
-    bodyMaterial.color.setHex(0x7b68ee); // Purple
     createNeutralMouth();
     petTooltip.textContent = 'Bien, pero mejorable 😐';
   } else if (avgScore >= 40) {
-    bodyMaterial.color.setHex(0xf093fb); // Pink
     createWorriedMouth();
     petTooltip.textContent = 'Necesita mejoras 😟';
   } else {
-    bodyMaterial.color.setHex(0xffa07a); // Orange
     createAlertMouth();
     petTooltip.textContent = '¡Atención! Muchos problemas 😰';
   }
@@ -871,4 +956,5 @@ window.addEventListener('beforeunload', () => {
   if (renderer) {
     renderer.dispose();
   }
+  document.removeEventListener('mousemove', trackCursor);
 });

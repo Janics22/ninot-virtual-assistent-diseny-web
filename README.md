@@ -88,4 +88,3 @@ Ver [INSTALL.md](INSTALL.md) para instrucciones completas de configuración.
 - 😐 **Neutral** (60-79): Bien pero mejorable
 - 😟 **Preocupado** (40-59): Necesita mejoras
 - 😰 **Alerta** (0-39): Muchos problemas
-

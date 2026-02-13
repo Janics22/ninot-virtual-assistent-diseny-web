@@ -72,4 +72,3 @@ chrome.tabs.onUpdated.addListener((tabId, changeInfo, tab) => {
     chrome.action.setBadgeText({ tabId: tabId, text: '' });
   }
 });
-
