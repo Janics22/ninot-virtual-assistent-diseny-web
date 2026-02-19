@@ -1,7 +1,7 @@
-const OpenAI = require('openai');
+const Anthropic = require('@anthropic-ai/sdk');
 
-const openai = new OpenAI({
-  apiKey: process.env.OPENAI_API_KEY
+const client = new Anthropic({
+  apiKey: process.env.ANTHROPIC_API_KEY
 });
 
 class OpenAIService {
@@ -33,7 +33,7 @@ ${localAnalysis.issues.slice(0, 10).map(i => `- [${i.severity}] ${i.message}`).j
 HTML (fragmento):
 ${sanitizedHTML}
 
-Responde en JSON:
+Responde ÚNICAMENTE con un objeto JSON válido (sin markdown, sin backticks):
 {
   "priority": "high|medium|low",
   "mainIssues": ["issue1", "issue2", "issue3"],
@@ -49,28 +49,20 @@ Responde en JSON:
   "summary": "Resumen ejecutivo en 2-3 líneas"
 }`;
 
-      const completion = await openai.chat.completions.create({
-        model: 'gpt-4o',
-        messages: [
-          {
-            role: 'system',
-            content: 'Eres un experto en desarrollo web y UX. Proporciona análisis concretos y accionables, nunca genéricos.'
-          },
-          {
-            role: 'user',
-            content: prompt
-          }
-        ],
-        temperature: 0.7,
+      const message = await client.messages.create({
+        model: 'claude-sonnet-4-6',
         max_tokens: 2000,
-        response_format: { type: "json_object" }
+        system: 'Eres un experto en desarrollo web y UX. Proporciona análisis concretos y accionables, nunca genéricos. Responde siempre con JSON válido sin markdown.',
+        messages: [
+          { role: 'user', content: prompt }
+        ]
       });
 
-      const content = completion.choices[0].message.content;
+      const content = message.content[0].text;
       return JSON.parse(content);
 
     } catch (error) {
-      console.error('OpenAI Service Error:', error);
+      console.error('Anthropic Service Error:', error);
       throw new Error('Error al procesar análisis con IA');
     }
   }

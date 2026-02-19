@@ -19,25 +19,38 @@ const app = express();
 
 app.use(helmet());
 
+// CORS — acepta cualquier chrome-extension y localhost
 app.use(cors({
-  origin: [
-    'http://localhost:3000',
-    'chrome-extension://*',
-    process.env.FRONTEND_URL
-  ].filter(Boolean),
+  origin: (origin, callback) => {
+    // Permitir requests sin origin (Postman, curl, etc.)
+    if (!origin) return callback(null, true);
+
+    // Permitir extensiones de Chrome
+    if (origin.startsWith('chrome-extension://')) return callback(null, true);
+
+    // Permitir localhost en cualquier puerto
+    if (origin.startsWith('http://localhost')) return callback(null, true);
+
+    // Permitir frontend URL si está configurada
+    if (process.env.FRONTEND_URL && origin === process.env.FRONTEND_URL) {
+      return callback(null, true);
+    }
+
+    callback(new Error(`CORS bloqueado: ${origin}`));
+  },
   credentials: true
 }));
 
 // Rate limiting
 const limiter = rateLimit({
-  windowMs: 15 * 60 * 1000, // 15 minutes
-  max: 100, // limit each IP to 100 requests per windowMs
+  windowMs: 15 * 60 * 1000,
+  max: 100,
   message: 'Demasiadas solicitudes, intenta de nuevo más tarde'
 });
 
 app.use('/auth', limiter);
 
-// Body parser - IMPORTANT: Webhook route needs raw body
+// Body parser — webhook necesita raw body
 app.use((req, res, next) => {
   if (req.originalUrl === '/stripe/webhook') {
     next();
@@ -53,7 +66,7 @@ app.use(express.urlencoded({ extended: true }));
 // ============================================
 
 app.get('/', (req, res) => {
-  res.json({ 
+  res.json({
     message: 'Code Pet API v2.0',
     status: 'online',
     timestamp: new Date().toISOString()
@@ -93,12 +106,11 @@ app.listen(PORT, () => {
   console.log(`📡 Server: http://localhost:${PORT}`);
   console.log(`🌍 Environment: ${process.env.NODE_ENV || 'development'}`);
   console.log(`💳 Stripe: ${process.env.STRIPE_SECRET_KEY ? 'Configured' : 'Not configured'}`);
-  console.log(`🤖 OpenAI: ${process.env.OPENAI_API_KEY ? 'Configured' : 'Not configured'}`);
+  console.log(`🤖 Anthropic: ${process.env.ANTHROPIC_API_KEY ? 'Configured' : 'Not configured'}`);
   console.log('━━━━━━━━━━━━━━━━━━━━━━━━━━');
   console.log('');
 });
 
-// Graceful shutdown
 process.on('SIGTERM', () => {
   console.log('SIGTERM received, shutting down gracefully...');
   process.exit(0);

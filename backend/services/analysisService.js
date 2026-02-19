@@ -1,6 +1,6 @@
 const AnalysisModel = require('../models/analysisModel');
 const UserModel = require('../models/userModel');
-const OpenAIService = require('./openaiService');
+const OpenAIService = require('./claudeService');
 
 class AnalysisService {
   static async processLocalAnalysis(userId, url, localData) {

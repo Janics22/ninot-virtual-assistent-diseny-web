@@ -1,69 +1,37 @@
 const CodeOptimizationService = require('../services/codeOptimizationService');
-const UserModel = require('../models/userModel');
 
 class CodeOptimizationController {
-  static async optimizeCode(req, res, next) {
-    console.log('🎨 Solicitud de optimización de código');
-    console.log('👤 Usuario:', req.user.userId);
-    
+  static async optimizeCode(req, res) {
     try {
-      const { code, language, accessibilityTarget } = req.body;
+      const { code, language, accessibilityTarget, analyzeOnly } = req.body;
 
-      if (!code || !language) {
-        return res.status(400).json({ error: 'Código y lenguaje requeridos' });
-      }
+      if (!code) return res.status(400).json({ error: 'El código es requerido' });
+      if (!language) return res.status(400).json({ error: 'El lenguaje es requerido' });
 
-      // Validar lenguaje
-      const validLanguages = ['html', 'css', 'javascript', 'react'];
-      if (!validLanguages.includes(language.toLowerCase())) {
-        return res.status(400).json({ 
-          error: 'Lenguaje no soportado',
-          supported: validLanguages 
-        });
-      }
-
-      console.log('📝 Lenguaje:', language);
-      console.log('🎯 Target:', accessibilityTarget || 'general');
-      console.log('📏 Código length:', code.length);
-
-      // Incrementar contador de uso
-      await UserModel.incrementAnalysisCount(req.user.userId);
-
-      // Optimizar código con IA
       const result = await CodeOptimizationService.optimizeCode(
         code,
         language,
-        accessibilityTarget || 'general'
+        accessibilityTarget || 'general',
+        analyzeOnly === true  // pasa el flag al service
       );
 
-      console.log('✅ Optimización completada');
       res.json(result);
-
     } catch (error) {
-      console.error('❌ Error en optimización:', error);
-      next(error);
+      console.error('Error en optimización:', error);
+      res.status(500).json({ error: error.message });
     }
   }
 
-  static async analyzeAccessibility(req, res, next) {
+  static async analyzeAccessibility(req, res) {
     try {
       const { html, css, target } = req.body;
+      if (!html) return res.status(400).json({ error: 'El HTML es requerido' });
 
-      if (!html) {
-        return res.status(400).json({ error: 'HTML requerido' });
-      }
-
-      const result = await CodeOptimizationService.analyzeAccessibility(
-        html,
-        css || '',
-        target || 'general'
-      );
-
+      const result = await CodeOptimizationService.analyzeAccessibility(html, css || '', target || 'general');
       res.json(result);
-
     } catch (error) {
-      console.error('❌ Error en análisis:', error);
-      next(error);
+      console.error('Error en análisis:', error);
+      res.status(500).json({ error: error.message });
     }
   }
 }
