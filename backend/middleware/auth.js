@@ -1,10 +1,10 @@
 const jwt = require('jsonwebtoken');
 
-function authMiddleware(req, res, next) {
+const authMiddleware = (req, res, next) => {
   const authHeader = req.headers.authorization;
 
   if (!authHeader || !authHeader.startsWith('Bearer ')) {
-    return res.status(401).json({ error: 'Token no proporcionado' });
+    return res.status(401).json({ error: 'No autorizado - Token requerido' });
   }
 
   const token = authHeader.substring(7);
@@ -14,15 +14,11 @@ function authMiddleware(req, res, next) {
     req.user = decoded;
     next();
   } catch (error) {
-    return res.status(401).json({ error: 'Token inválido o expirado' });
+    if (error.name === 'TokenExpiredError') {
+      return res.status(401).json({ error: 'Token expirado' });
+    }
+    return res.status(401).json({ error: 'Token inválido' });
   }
-}
+};
 
-function premiumMiddleware(req, res, next) {
-  if (req.user.role !== 'premium') {
-    return res.status(403).json({ error: 'Requiere suscripción premium' });
-  }
-  next();
-}
-
-module.exports = { authMiddleware, premiumMiddleware };
+module.exports = authMiddleware;

@@ -1,0 +1,123 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Code Pet - Editor PRO</title>
+  <link rel="stylesheet" href="editor.css">
+</head>
+<body>
+  <div class="container">
+    <!-- Header -->
+    <header class="header">
+      <div class="header-left">
+        <h1>🎨 Code Pet Editor PRO</h1>
+        <p>Optimización con IA y Análisis de Accesibilidad</p>
+      </div>
+      <div class="header-right">
+        <span id="user-email" class="user-badge"></span>
+        <button id="back-btn" class="btn-secondary">← Volver</button>
+      </div>
+    </header>
+
+    <!-- Main Content -->
+    <div class="main-content">
+      <!-- Left Panel - Editors -->
+      <div class="editors-panel">
+        <!-- Language Selector -->
+        <div class="language-selector">
+          <button class="lang-btn active" data-lang="html">HTML</button>
+          <button class="lang-btn" data-lang="css">CSS</button>
+          <button class="lang-btn" data-lang="javascript">JavaScript</button>
+          <button class="lang-btn" data-lang="react">React</button>
+        </div>
+
+        <!-- Accessibility Target -->
+        <div class="accessibility-selector">
+          <label>🎯 Optimizar para:</label>
+          <select id="accessibility-target">
+            <option value="general">Público General</option>
+            <option value="blind">Personas Ciegas (Lectores de Pantalla)</option>
+            <option value="colorblind">Personas Daltónicas</option>
+            <option value="lowVision">Personas con Baja Visión</option>
+            <option value="motor">Discapacidades Motoras</option>
+            <option value="cognitive">Discapacidades Cognitivas</option>
+            <option value="deaf">Personas Sordas</option>
+          </select>
+        </div>
+
+        <!-- Code Editors -->
+        <div class="editors-container">
+          <!-- Original Code -->
+          <div class="editor-section">
+            <div class="editor-header">
+              <h3>📝 Tu Código</h3>
+              <button id="clear-btn" class="btn-icon">🗑️ Limpiar</button>
+            </div>
+            <textarea id="original-code" class="code-editor" placeholder="Escribe o pega tu código aquí..."></textarea>
+          </div>
+
+          <!-- Optimized Code -->
+          <div class="editor-section">
+            <div class="editor-header">
+              <h3>✨ Código Optimizado</h3>
+              <button id="copy-btn" class="btn-icon">📋 Copiar</button>
+            </div>
+            <textarea id="optimized-code" class="code-editor" placeholder="El código optimizado aparecerá aquí..." readonly></textarea>
+          </div>
+        </div>
+
+        <!-- Action Buttons -->
+        <div class="action-buttons">
+          <button id="optimize-btn" class="btn-primary">
+            ✨ Optimizar con IA
+          </button>
+        </div>
+      </div>
+
+      <!-- Right Panel - Analysis & Preview -->
+      <div class="analysis-panel">
+        <!-- Tabs -->
+        <div class="tabs">
+          <button class="tab active" data-tab="errors">🐛 Errores</button>
+          <button class="tab" data-tab="preview">👁️ Preview</button>
+          <button class="tab" data-tab="changes">📋 Cambios</button>
+        </div>
+
+        <!-- Tab Contents -->
+        <div class="tab-content">
+          <!-- Errors Tab -->
+          <div id="errors-tab" class="tab-pane active">
+            <div class="empty-state">
+              <div class="empty-icon">🔍</div>
+              <p>Haz click en "Optimizar con IA" para ver los errores detectados</p>
+            </div>
+          </div>
+
+          <!-- Preview Tab -->
+          <div id="preview-tab" class="tab-pane">
+            <iframe id="preview-frame" sandbox="allow-scripts" title="Vista previa del código"></iframe>
+          </div>
+
+          <!-- Changes Tab -->
+          <div id="changes-tab" class="tab-pane">
+            <div class="empty-state">
+              <div class="empty-icon">📝</div>
+              <p>Los cambios realizados aparecerán aquí</p>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Loading Overlay -->
+    <div id="loading-overlay" class="loading-overlay hidden">
+      <div class="loading-spinner"></div>
+      <p>Optimizando código con IA...</p>
+      <small>Esto puede tardar unos segundos</small>
+    </div>
+  </div>
+
+  <script src="editor.js"></script>
+</body>
+</html>

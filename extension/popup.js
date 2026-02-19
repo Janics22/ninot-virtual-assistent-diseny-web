@@ -1,3 +1,6 @@
+// popup.js - MODIFICADO para backend SaaS
+// Maneja autenticación y suscripciones
+
 const API_URL = 'http://localhost:3000';
 
 let currentView = 'auth';
@@ -65,14 +68,15 @@ async function handleLogin(e) {
       throw new Error(data.error || 'Error al iniciar sesión');
     }
     
+    // Guardar en storage
     await chrome.storage.local.set({
       authToken: data.token,
       userEmail: data.user.email,
-      userRole: data.user.role
+      userPlan: data.user.plan
     });
     
     await loadUserData();
-    notifyContentScript(data.user.role);
+    notifyContentScript(data.token, data.user.plan);
     
   } catch (error) {
     showError(error.message);
@@ -99,14 +103,15 @@ async function handleRegister(e) {
       throw new Error(data.error || 'Error al registrarse');
     }
     
+    // Guardar en storage
     await chrome.storage.local.set({
       authToken: data.token,
       userEmail: data.user.email,
-      userRole: data.user.role
+      userPlan: data.user.plan
     });
     
     await loadUserData();
-    notifyContentScript(data.user.role);
+    notifyContentScript(data.token, data.user.plan);
     
   } catch (error) {
     showError(error.message);
@@ -116,14 +121,24 @@ async function handleRegister(e) {
 async function handleLogout() {
   await chrome.storage.local.clear();
   showView('auth');
-  notifyContentScript('free');
+  notifyContentScript(null, 'free');
 }
 
 async function handleSubscribe() {
   try {
     const { authToken } = await chrome.storage.local.get(['authToken']);
     
-    const response = await fetch(`${API_URL}/create-checkout-session`, {
+    console.log('🔑 Token:', authToken); // ← AÑADIR ESTO
+    
+    if (!authToken) {
+      console.error('❌ No hay token');
+      showError('Debes iniciar sesión primero');
+      return;
+    }
+    
+    console.log('📡 Enviando request a:', `${API_URL}/stripe/create-checkout-session`); // ← AÑADIR ESTO
+    
+    const response = await fetch(`${API_URL}/stripe/create-checkout-session`, {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
@@ -131,15 +146,21 @@ async function handleSubscribe() {
       }
     });
     
+    console.log('📥 Response status:', response.status); // ← AÑADIR ESTO
+    
     const data = await response.json();
+    
+    console.log('📦 Response data:', data); // ← AÑADIR ESTO
     
     if (!response.ok) {
       throw new Error(data.error || 'Error al crear sesión de pago');
     }
     
+    // Abrir Stripe Checkout en nueva pestaña
     chrome.tabs.create({ url: data.url });
     
   } catch (error) {
+    console.error('❌ Error completo:', error); // ← AÑADIR ESTO
     showError(error.message);
   }
 }
@@ -148,7 +169,7 @@ async function loadUserData() {
   try {
     const { authToken } = await chrome.storage.local.get(['authToken']);
     
-    const response = await fetch(`${API_URL}/auth/me`, {
+    const response = await fetch(`${API_URL}/user/me`, {
       headers: { 'Authorization': `Bearer ${authToken}` }
     });
     
@@ -158,26 +179,32 @@ async function loadUserData() {
     
     const data = await response.json();
     
+    // Actualizar storage
     await chrome.storage.local.set({
       userEmail: data.user.email,
-      userRole: data.user.role
+      userPlan: data.user.plan
     });
     
+    // Actualizar UI
     document.getElementById('user-email').textContent = data.user.email;
     
     const planElement = document.getElementById('user-plan');
-    if (data.user.role === 'premium') {
-      planElement.textContent = 'Plan Premium ✨';
-      planElement.classList.add('premium');
-      document.querySelector('.plan-section').style.display = 'none';
-      showView('premium');
+    const planSection = document.querySelector('.plan-section');
+    
+    if (data.user.plan === 'pro') {
+      planElement.textContent = 'Plan Pro ✨';
+      planElement.classList.add('pro');
+      planSection.style.display = 'none';
+      showView('pro');
     } else {
       planElement.textContent = 'Plan Gratuito';
-      planElement.classList.remove('premium');
+      planElement.classList.remove('pro');
+      planSection.style.display = 'block';
       showView('dashboard');
     }
     
   } catch (error) {
+    // Si falla, limpiar storage y volver a auth
     await chrome.storage.local.clear();
     showView('auth');
   }
@@ -188,14 +215,14 @@ function showView(view) {
   
   document.getElementById('auth-view').classList.add('hidden');
   document.getElementById('dashboard-view').classList.add('hidden');
-  document.getElementById('premium-view').classList.add('hidden');
+  document.getElementById('pro-view').classList.add('hidden');
   
   if (view === 'auth') {
     document.getElementById('auth-view').classList.remove('hidden');
   } else if (view === 'dashboard') {
     document.getElementById('dashboard-view').classList.remove('hidden');
-  } else if (view === 'premium') {
-    document.getElementById('premium-view').classList.remove('hidden');
+  } else if (view === 'pro') {
+    document.getElementById('pro-view').classList.remove('hidden');
   }
 }
 
@@ -209,12 +236,16 @@ function hideError() {
   document.getElementById('error-message').classList.add('hidden');
 }
 
-async function notifyContentScript(role) {
-  const [tab] = await chrome.tabs.query({ active: true, currentWindow: true });
-  if (tab?.id) {
+async function notifyContentScript(token, plan) {
+  // Notificar a todas las pestañas activas sobre el cambio de auth
+  const tabs = await chrome.tabs.query({});
+  tabs.forEach(tab => {
     chrome.tabs.sendMessage(tab.id, {
       action: 'authUpdated',
-      isPremium: role === 'premium'
-    }).catch(() => {});
-  }
+      token: token,
+      plan: plan
+    }).catch(() => {
+      // Ignorar si la pestaña no tiene content script
+    });
+  });
 }

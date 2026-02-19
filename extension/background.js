@@ -54,6 +54,10 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
     chrome.tabs.create({ url: chrome.runtime.getURL('popup.html') });
   }
   
+  if (message.action === 'openEditor') {
+    chrome.tabs.create({ url: chrome.runtime.getURL('editor.html') });
+  }
+  
   if (message.action === 'petRemoved' && sender.tab) {
     petActiveInTab.delete(sender.tab.id);
     chrome.action.setBadgeText({ tabId: sender.tab.id, text: '' });

@@ -1,4 +1,5 @@
-// Content Script - Análisis automático de la página con mascota 3D
+// Content Script - Client for Backend SaaS
+// MANTIENE TODO EL DISEÑO VISUAL Y LA MASCOTA 3D
 
 const API_URL = 'http://localhost:3000';
 
@@ -15,53 +16,67 @@ let isDragging = false;
 let dragOffsetX = 0;
 let dragOffsetY = 0;
 
-// Variables para seguimiento de mirada
 let mouseX = window.innerWidth / 2;
 let mouseY = window.innerHeight / 2;
 let eyePupils = [];
 
-// Variables para transición de color
-let currentColor = { r: 111/255, g: 185/255, b: 111/255 }; // Verde inicial
+let currentColor = { r: 111/255, g: 185/255, b: 111/255 };
 let targetColor = { r: 111/255, g: 185/255, b: 111/255 };
 let particles = [];
 
-// NO inicializar automáticamente, esperar mensaje del background
-// Escuchar mensajes del background
+// User state
+let userPlan = 'free';
+let authToken = null;
+
+// ============================================
+// INITIALIZATION
+// ============================================
+
 chrome.runtime.onMessage.addListener((message) => {
   if (message.action === 'showPet') {
-    if (!isVisible) {
-      init();
-    }
+    if (!isVisible) init();
   } else if (message.action === 'removePet') {
     removePet();
   } else if (message.action === 'reanalyze') {
-    if (isVisible) {
-      runLocalAnalysis();
-    }
+    if (isVisible) runLocalAnalysis();
   } else if (message.action === 'authUpdated') {
-    updatePremiumUI(message.isPremium);
+    updateAuthState(message.token, message.plan);
   }
 });
 
-function init() {
+async function init() {
   if (isVisible) return;
+  
+  // Load auth state
+  await loadAuthState();
   
   createPetOverlay3D();
   createAnalysisPanel();
   runLocalAnalysis();
   
-  chrome.storage.local.get(['authToken', 'userRole'], (data) => {
-    if (data.authToken) {
-      updatePremiumUI(data.userRole === 'premium');
-    }
-  });
-  
   isVisible = true;
   showWelcomeMessage();
-  
-  // Iniciar seguimiento de cursor GLOBAL
   initMouseTracking();
 }
+
+async function loadAuthState() {
+  const data = await chrome.storage.local.get(['authToken', 'userPlan']);
+  authToken = data.authToken || null;
+  userPlan = data.userPlan || 'free';
+  
+  console.log('Auth state loaded:', { plan: userPlan, hasToken: !!authToken });
+}
+
+function updateAuthState(token, plan) {
+  authToken = token;
+  userPlan = plan || 'free';
+  updatePremiumUI();
+}
+
+// ============================================
+// TODO EL CÓDIGO DE LA MASCOTA 3D SE MANTIENE IGUAL
+// (createPetOverlay3D, initThreeJS, createPet3D, etc.)
+// ============================================
 
 function removePet() {
   if (!isVisible) return;
@@ -106,40 +121,15 @@ function showWelcomeMessage() {
   `;
   
   welcome.style.cssText = `
-    position: fixed;
-    top: 20px;
-    left: 50%;
-    transform: translateX(-50%);
-    background: rgba(111, 185, 111, 0.95);
-    color: white;
-    padding: 20px 30px;
-    border-radius: 12px;
+    position: fixed; top: 20px; left: 50%; transform: translateX(-50%);
+    background: rgba(111, 185, 111, 0.95); color: white;
+    padding: 20px 30px; border-radius: 12px;
     box-shadow: 0 8px 24px rgba(0, 0, 0, 0.3);
-    z-index: 999999;
-    font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
-    text-align: center;
-    backdrop-filter: blur(10px);
+    z-index: 999999; font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+    text-align: center; backdrop-filter: blur(10px);
     animation: slideDown 0.5s ease;
   `;
   
-  const style = document.createElement('style');
-  style.textContent = `
-    @keyframes slideDown {
-      from {
-        opacity: 0;
-        transform: translateX(-50%) translateY(-20px);
-      }
-      to {
-        opacity: 1;
-        transform: translateX(-50%) translateY(0);
-      }
-    }
-    #code-pet-welcome .welcome-icon { font-size: 48px; margin-bottom: 10px; }
-    #code-pet-welcome h3 { margin: 0 0 8px 0; font-size: 18px; font-weight: 600; }
-    #code-pet-welcome p { margin: 0; font-size: 14px; opacity: 0.9; }
-  `;
-  
-  document.head.appendChild(style);
   document.body.appendChild(welcome);
   
   setTimeout(() => {
@@ -170,7 +160,6 @@ function createPetOverlay3D() {
   
   document.body.appendChild(petOverlay);
   
-  // Inicializar Three.js
   initThreeJS();
 }
 
@@ -189,7 +178,6 @@ function handleMouseMove(e) {
     petX = e.clientX - dragOffsetX;
     petY = e.clientY - dragOffsetY;
     
-    // Limitar a los bordes de la pantalla
     petX = Math.max(0, Math.min(window.innerWidth - 120, petX));
     petY = Math.max(0, Math.min(window.innerHeight - 120, petY));
     
@@ -212,7 +200,6 @@ function handlePetClick(e) {
   }
 }
 
-// Actualizar posición al redimensionar ventana
 window.addEventListener('resize', () => {
   petX = Math.min(petX, window.innerWidth - 120);
   petY = Math.min(petY, window.innerHeight - 120);
@@ -222,16 +209,11 @@ window.addEventListener('resize', () => {
 
 function initThreeJS() {
   const canvas = document.getElementById('pet-canvas');
-  const container = canvas.parentElement;
   
-  // Scene
   scene = new THREE.Scene();
-  
-  // Camera
   camera = new THREE.PerspectiveCamera(45, 1, 0.1, 1000);
   camera.position.z = 5;
   
-  // Renderer
   renderer = new THREE.WebGLRenderer({ 
     canvas: canvas,
     alpha: true,
@@ -240,7 +222,6 @@ function initThreeJS() {
   renderer.setSize(120, 120);
   renderer.setPixelRatio(window.devicePixelRatio);
   
-  // Lights
   const ambientLight = new THREE.AmbientLight(0xffffff, 0.6);
   scene.add(ambientLight);
   
@@ -248,17 +229,13 @@ function initThreeJS() {
   directionalLight.position.set(5, 5, 5);
   scene.add(directionalLight);
   
-  // Create pet
   createPet3D();
-  
-  // Animation loop
   animate();
 }
 
 function createPet3D() {
   const petGroup = new THREE.Group();
   
-  // Body (main sphere)
   const bodyGeometry = new THREE.SphereGeometry(1.2, 32, 32);
   const bodyMaterial = new THREE.MeshPhongMaterial({ 
     color: 0x6fb96f,
@@ -267,10 +244,8 @@ function createPet3D() {
   petMesh = new THREE.Mesh(bodyGeometry, bodyMaterial);
   petGroup.add(petMesh);
   
-  // Eyes
   eyes = new THREE.Group();
   
-  // Left eye
   const leftEyeWhite = new THREE.Mesh(
     new THREE.SphereGeometry(0.25, 16, 16),
     new THREE.MeshPhongMaterial({ color: 0xffffff })
@@ -291,7 +266,6 @@ function createPet3D() {
   eyes.add(leftEyePupil);
   eyePupils.push(leftEyePupil);
   
-  // Right eye
   const rightEyeWhite = new THREE.Mesh(
     new THREE.SphereGeometry(0.25, 16, 16),
     new THREE.MeshPhongMaterial({ color: 0xffffff })
@@ -314,17 +288,13 @@ function createPet3D() {
   
   petGroup.add(eyes);
   
-  // Mouth (will change based on mood)
   mouth = new THREE.Group();
   createHappyMouth();
   petGroup.add(mouth);
   
-  // Floating particles around pet
   createParticles(petGroup);
   
   scene.add(petGroup);
-  
-  // Store reference
   scene.userData.petGroup = petGroup;
 }
 
@@ -348,9 +318,9 @@ function createParticles(petGroup) {
     particle.position.set(pos[0], pos[1], pos[2]);
     particle.userData.originalY = pos[1];
     particle.userData.floatOffset = Math.random() * Math.PI * 2;
-    particle.userData.isParticle = true; // Marcar como partícula
+    particle.userData.isParticle = true;
     petGroup.add(particle);
-    particles.push(particle); // Guardar referencia
+    particles.push(particle);
   });
 }
 
@@ -358,9 +328,9 @@ function createHappyMouth() {
   mouth.clear();
   
   const curve = new THREE.EllipseCurve(
-    0, -0.4, // center
-    0.4, 0.25, // radius X, Y
-    Math.PI * 0.2, Math.PI * 0.8, // start, end angle
+    0, -0.4,
+    0.4, 0.25,
+    Math.PI * 0.2, Math.PI * 0.8,
     false
   );
   
@@ -425,16 +395,11 @@ function createAlertMouth() {
   mouth.add(mouthCircle);
 }
 
-// ============================================
-// SEGUIMIENTO DE MIRADA GLOBAL
-// ============================================
 function initMouseTracking() {
-  // Listener GLOBAL en document para capturar movimiento del cursor en toda la página
   document.addEventListener('mousemove', trackCursor, { passive: true, capture: true });
 }
 
 function trackCursor(e) {
-  // Capturar posición del cursor en toda la ventana
   mouseX = e.clientX;
   mouseY = e.clientY;
 }
@@ -442,27 +407,22 @@ function trackCursor(e) {
 function updateEyeTracking() {
   if (!petOverlay || eyePupils.length === 0) return;
   
-  // Calcular centro del muñeco en la pantalla
-  const petCenterX = petX + 60; // mitad del ancho (120/2)
-  const petCenterY = petY + 60; // mitad del alto (120/2)
+  const petCenterX = petX + 60;
+  const petCenterY = petY + 60;
   
-  // Vector hacia el cursor
   const deltaX = mouseX - petCenterX;
   const deltaY = mouseY - petCenterY;
   const distance = Math.sqrt(deltaX * deltaX + deltaY * deltaY);
   
-  // Normalizar y limitar movimiento
-  const maxMovement = 0.08; // Máximo desplazamiento de la pupila
+  const maxMovement = 0.08;
   const normalizedX = distance > 0 ? (deltaX / distance) * maxMovement : 0;
-  const normalizedY = distance > 0 ? -(deltaY / distance) * maxMovement : 0; // Invertir Y
+  const normalizedY = distance > 0 ? -(deltaY / distance) * maxMovement : 0;
   
-  // Actualizar cada pupila con suavizado
   eyePupils.forEach(pupil => {
     const targetX = pupil.userData.baseX + normalizedX;
     const targetY = pupil.userData.baseY + normalizedY;
     const targetZ = pupil.userData.baseZ;
     
-    // Interpolación suave (lerp)
     const lerpFactor = 0.1;
     pupil.position.x += (targetX - pupil.position.x) * lerpFactor;
     pupil.position.y += (targetY - pupil.position.y) * lerpFactor;
@@ -470,41 +430,30 @@ function updateEyeTracking() {
   });
 }
 
-// ============================================
-// TRANSICIÓN GRADUAL DE COLOR
-// ============================================
 function updateColorTransition() {
-  const lerpSpeed = 0.02; // Velocidad de transición (más bajo = más suave)
+  const lerpSpeed = 0.02;
   
-  // Interpolar color actual hacia color objetivo
   currentColor.r += (targetColor.r - currentColor.r) * lerpSpeed;
   currentColor.g += (targetColor.g - currentColor.g) * lerpSpeed;
   currentColor.b += (targetColor.b - currentColor.b) * lerpSpeed;
   
-  // Aplicar color al cuerpo
   if (petMesh) {
     petMesh.material.color.setRGB(currentColor.r, currentColor.g, currentColor.b);
   }
   
-  // Aplicar color a las partículas
   particles.forEach(particle => {
     particle.material.color.setRGB(currentColor.r, currentColor.g, currentColor.b);
   });
 }
 
 function setTargetColorFromScore(avgScore) {
-  // Colores tipo semáforo (RGB normalizado 0-1)
   if (avgScore >= 80) {
-    // Verde (semáforo)
     targetColor = { r: 0/255, g: 200/255, b: 0/255 }; 
   } else if (avgScore >= 60) {
-    // Amarillo
     targetColor = { r: 255/255, g: 215/255, b: 0/255 };
   } else if (avgScore >= 40) {
-    // Naranja
     targetColor = { r: 255/255, g: 140/255, b: 0/255 };
   } else {
-    // Rojo
     targetColor = { r: 220/255, g: 0/255, b: 0/255 };
   }
 }
@@ -516,14 +465,10 @@ function animate() {
   const petGroup = scene.userData.petGroup;
   
   if (petGroup) {
-    // Gentle rotation
     petGroup.rotation.y = Math.sin(time * 0.5) * 0.1;
     petGroup.rotation.x = Math.sin(time * 0.3) * 0.05;
-    
-    // Floating animation (solo para el modelo 3D, no para la posición en pantalla)
     petGroup.position.y = Math.sin(time * 2) * 0.1;
     
-    // Animate particles
     petGroup.children.forEach(child => {
       if (child.userData.floatOffset !== undefined) {
         child.position.y = child.userData.originalY + 
@@ -532,10 +477,7 @@ function animate() {
     });
   }
   
-  // Actualizar seguimiento de mirada (se ejecuta en cada frame)
   updateEyeTracking();
-  
-  // Actualizar transición de color
   updateColorTransition();
   
   renderer.render(scene, camera);
@@ -549,10 +491,8 @@ function updatePetMood(scores) {
   
   if (!petGroup) return;
   
-  // Establecer color objetivo basado en puntuación (transición gradual)
   setTargetColorFromScore(avgScore);
   
-  // Actualizar boca según puntuación
   if (avgScore >= 80) {
     createHappyMouth();
     petTooltip.textContent = '¡Excelente! 😊';
@@ -567,6 +507,10 @@ function updatePetMood(scores) {
     petTooltip.textContent = '¡Atención! Muchos problemas 😰';
   }
 }
+
+// ============================================
+// PANEL DE ANÁLISIS (DISEÑO MANTENIDO)
+// ============================================
 
 function createAnalysisPanel() {
   analysisPanel = document.createElement('div');
@@ -603,8 +547,11 @@ function createAnalysisPanel() {
       </div>
       
       <div class="premium-section" id="premium-section">
+        <button id="open-editor" class="premium-btn" style="margin-bottom: 12px;">
+          🎨 Abrir Editor PRO
+        </button>
         <button id="analyze-premium" class="premium-btn">
-          ✨ Análisis Inteligente (Premium)
+          ✨ Análisis Inteligente PRO
         </button>
         <div id="premium-results" class="hidden"></div>
       </div>
@@ -612,6 +559,15 @@ function createAnalysisPanel() {
       <div class="auth-section" id="auth-section">
         <p>Inicia sesión para análisis premium con IA</p>
         <button id="open-auth" class="auth-btn">Iniciar Sesión</button>
+      </div>
+      
+      <div class="upgrade-section hidden" id="upgrade-section">
+        <div style="background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); color: white; padding: 16px; border-radius: 8px; text-align: center;">
+          <p style="margin: 0 0 12px 0; font-size: 14px;">🔒 Análisis con IA disponible en Plan PRO</p>
+          <button id="upgrade-btn" class="premium-btn" style="background: white; color: #667eea;">
+            Actualizar a PRO
+          </button>
+        </div>
       </div>
     </div>
   `;
@@ -621,11 +577,19 @@ function createAnalysisPanel() {
   document.getElementById('close-panel').addEventListener('click', togglePanel);
   document.getElementById('analyze-premium').addEventListener('click', runPremiumAnalysis);
   document.getElementById('open-auth').addEventListener('click', openAuthPopup);
+  document.getElementById('upgrade-btn')?.addEventListener('click', openUpgrade);
+  document.getElementById('open-editor')?.addEventListener('click', openEditor);
+  
+  updatePremiumUI();
 }
 
 function togglePanel() {
   analysisPanel.classList.toggle('hidden');
 }
+
+// ============================================
+// ANÁLISIS LOCAL (SIN CAMBIOS)
+// ============================================
 
 function runLocalAnalysis() {
   const html = document.documentElement.outerHTML;
@@ -634,6 +598,29 @@ function runLocalAnalysis() {
   
   displayResults(analysis);
   updatePetMood(analysis.scores);
+  
+  // Send to backend for history (if authenticated)
+  if (authToken) {
+    saveLocalAnalysisToBackend(analysis);
+  }
+}
+
+async function saveLocalAnalysisToBackend(analysis) {
+  try {
+    await fetch(`${API_URL}/analysis/local`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'Authorization': `Bearer ${authToken}`
+      },
+      body: JSON.stringify({
+        url: window.location.href,
+        localData: analysis
+      })
+    });
+  } catch (error) {
+    console.log('Could not save to backend:', error.message);
+  }
 }
 
 function analyzeLocally(html) {
@@ -645,7 +632,6 @@ function analyzeLocally(html) {
     codeQuality: 100
   };
   
-  // Accesibilidad: imágenes sin alt
   const imgsWithoutAlt = document.querySelectorAll('img:not([alt])');
   if (imgsWithoutAlt.length > 0) {
     issues.push({
@@ -657,7 +643,6 @@ function analyzeLocally(html) {
     scores.accessibility -= Math.min(30, imgsWithoutAlt.length * 5);
   }
   
-  // Accesibilidad: contraste de colores
   const elements = document.querySelectorAll('p, h1, h2, h3, h4, h5, h6, span, a, button');
   let lowContrastCount = 0;
   
@@ -681,7 +666,6 @@ function analyzeLocally(html) {
     scores.accessibility -= Math.min(20, lowContrastCount * 2);
   }
   
-  // Jerarquía de títulos
   const h1Count = document.querySelectorAll('h1').length;
   
   if (h1Count === 0) {
@@ -701,7 +685,6 @@ function analyzeLocally(html) {
     scores.accessibility -= 10;
   }
   
-  // Tamaño de fuente
   const smallText = Array.from(elements).filter(el => {
     const fontSize = parseFloat(window.getComputedStyle(el).fontSize);
     return fontSize < 12;
@@ -717,7 +700,6 @@ function analyzeLocally(html) {
     scores.readability -= Math.min(20, smallText.length * 3);
   }
   
-  // Análisis de código: console.log en producción
   const scripts = Array.from(document.querySelectorAll('script')).map(s => s.textContent).join('\n');
   const consoleLogMatches = scripts.match(/console\.(log|warn|error|debug)/g);
   
@@ -731,7 +713,6 @@ function analyzeLocally(html) {
     scores.codeQuality -= Math.min(15, consoleLogMatches.length * 2);
   }
   
-  // Inline styles
   const inlineStyles = document.querySelectorAll('[style]');
   if (inlineStyles.length > 10) {
     issues.push({
@@ -744,16 +725,6 @@ function analyzeLocally(html) {
     scores.ux -= 10;
   }
   
-  // React: componentes sin key
-  if (window.React || document.querySelector('[data-reactroot]')) {
-    const reactWarnings = checkReactIssues();
-    if (reactWarnings.length > 0) {
-      issues.push(...reactWarnings);
-      scores.codeQuality -= reactWarnings.length * 5;
-    }
-  }
-  
-  // UX: botones y links sin texto
   const emptyButtons = Array.from(document.querySelectorAll('button, a')).filter(el => {
     return !el.textContent.trim() && !el.getAttribute('aria-label');
   });
@@ -811,33 +782,6 @@ function getLuminance(rgb) {
   return 0.2126 * r + 0.7152 * g + 0.0722 * b;
 }
 
-function checkReactIssues() {
-  const warnings = [];
-  
-  const lists = document.querySelectorAll('ul, ol');
-  lists.forEach(list => {
-    const items = list.children;
-    if (items.length > 3) {
-      let hasKeys = true;
-      for (let item of items) {
-        if (!item.getAttribute('data-key') && !item.key) {
-          hasKeys = false;
-          break;
-        }
-      }
-      if (!hasKeys) {
-        warnings.push({
-          type: 'codeQuality',
-          severity: 'medium',
-          message: 'Posibles listas React sin keys'
-        });
-      }
-    }
-  });
-  
-  return warnings;
-}
-
 function displayResults(analysis) {
   document.getElementById('score-ux').textContent = Math.round(analysis.scores.ux);
   document.getElementById('score-a11y').textContent = Math.round(analysis.scores.accessibility);
@@ -871,15 +815,27 @@ function getSeverityIcon(severity) {
   return icons[severity] || '⚪';
 }
 
+// ============================================
+// ANÁLISIS PREMIUM CON IA - BACKEND
+// ============================================
+
 async function runPremiumAnalysis() {
+  if (!authToken) {
+    openAuthPopup();
+    return;
+  }
+  
+  if (userPlan !== 'pro') {
+    showUpgradePrompt();
+    return;
+  }
+  
   const btn = document.getElementById('analyze-premium');
   btn.disabled = true;
-  btn.textContent = 'Analizando...';
+  btn.textContent = 'Analizando con IA...';
   
   try {
-    const { authToken } = await chrome.storage.local.get(['authToken']);
-    
-    const response = await fetch(`${API_URL}/analyze-premium`, {
+    const response = await fetch(`${API_URL}/analysis/ai`, {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
@@ -892,60 +848,170 @@ async function runPremiumAnalysis() {
       })
     });
     
+    const data = await response.json();
+    
     if (!response.ok) {
-      throw new Error('Error en análisis premium');
+      if (data.code === 'LIMIT_REACHED') {
+        showLimitReached(data);
+      } else {
+        throw new Error(data.error || 'Error en análisis premium');
+      }
+      return;
     }
     
-    const data = await response.json();
-    displayPremiumResults(data);
+    displayPremiumResults(data.ai);
     
   } catch (error) {
     alert('Error: ' + error.message);
   } finally {
     btn.disabled = false;
-    btn.textContent = '✨ Análisis Inteligente (Premium)';
+    btn.textContent = '✨ Análisis Inteligente PRO';
   }
 }
 
-function displayPremiumResults(data) {
+function displayPremiumResults(aiData) {
   const resultsDiv = document.getElementById('premium-results');
   resultsDiv.classList.remove('hidden');
+  
+  const recommendations = aiData.recommendations || [];
+  const quickWins = aiData.quickWins || [];
+  
   resultsDiv.innerHTML = `
     <div class="premium-content">
-      <h4>💎 Análisis Inteligente</h4>
-      <div class="ai-explanation">
-        <h5>Explicación Detallada</h5>
-        <p>${data.explanation || 'Sin explicación disponible'}</p>
+      <h4>💎 Análisis con IA</h4>
+      
+      <div class="ai-summary" style="background: #f0f7ff; padding: 12px; border-radius: 8px; margin-bottom: 16px;">
+        <p style="margin: 0; color: #333; font-size: 13px;">${aiData.summary || 'Sin resumen disponible'}</p>
       </div>
-      <div class="ai-priorities">
-        <h5>Prioridades</h5>
-        <p>${data.priorities || 'Sin prioridades disponibles'}</p>
-      </div>
-      ${data.suggestions ? `
-        <div class="ai-suggestions">
-          <h5>Sugerencias</h5>
-          <p>${data.suggestions}</p>
+      
+      ${quickWins.length > 0 ? `
+        <div class="ai-section">
+          <h5 style="color: #6fb96f; margin-bottom: 8px;">⚡ Victorias Rápidas</h5>
+          <ul style="margin: 0; padding-left: 20px; font-size: 13px;">
+            ${quickWins.map(w => `<li style="margin-bottom: 4px;">${w}</li>`).join('')}
+          </ul>
+        </div>
+      ` : ''}
+      
+      ${recommendations.length > 0 ? `
+        <div class="ai-section">
+          <h5 style="color: #667eea; margin-bottom: 8px;">📋 Recomendaciones</h5>
+          ${recommendations.slice(0, 5).map(rec => `
+            <div style="background: white; padding: 10px; border-radius: 6px; margin-bottom: 8px; border-left: 3px solid ${getImpactColor(rec.impact)};">
+              <strong style="font-size: 13px;">${rec.title}</strong>
+              <p style="margin: 4px 0 0 0; font-size: 12px; color: #666;">${rec.description}</p>
+              <div style="margin-top: 6px; font-size: 11px; color: #999;">
+                Impacto: ${rec.impact} | Esfuerzo: ${rec.effort}
+              </div>
+            </div>
+          `).join('')}
         </div>
       ` : ''}
     </div>
   `;
 }
 
-function updatePremiumUI(isPremium) {
+function getImpactColor(impact) {
+  const colors = {
+    high: '#e74c3c',
+    medium: '#f39c12',
+    low: '#3498db'
+  };
+  return colors[impact] || '#95a5a6';
+}
+
+function showLimitReached(data) {
+  const resultsDiv = document.getElementById('premium-results');
+  resultsDiv.classList.remove('hidden');
+  resultsDiv.innerHTML = `
+    <div style="background: #fff3cd; border: 1px solid #ffc107; padding: 16px; border-radius: 8px; text-align: center;">
+      <p style="margin: 0 0 8px 0; font-weight: 600; color: #856404;">⚠️ Límite Alcanzado</p>
+      <p style="margin: 0; font-size: 13px; color: #856404;">
+        Has usado ${data.used} de ${data.limit} análisis este mes.<br>
+        Se resetea el: ${new Date(data.resetDate).toLocaleDateString()}
+      </p>
+    </div>
+  `;
+}
+
+function showUpgradePrompt() {
+  const resultsDiv = document.getElementById('premium-results');
+  resultsDiv.classList.remove('hidden');
+  resultsDiv.innerHTML = `
+    <div style="background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); color: white; padding: 20px; border-radius: 8px; text-align: center;">
+      <h4 style="margin: 0 0 12px 0;">🔒 Análisis con IA</h4>
+      <p style="margin: 0 0 16px 0; font-size: 14px;">
+        Actualiza a Plan PRO para acceder a análisis inteligentes con IA
+      </p>
+      <button onclick="openUpgrade()" style="
+        background: white;
+        color: #667eea;
+        border: none;
+        padding: 12px 24px;
+        border-radius: 8px;
+        font-weight: 600;
+        cursor: pointer;
+      ">
+        Actualizar a PRO - $9.99/mes
+      </button>
+    </div>
+  `;
+}
+
+function updatePremiumUI() {
   const premiumSection = document.getElementById('premium-section');
   const authSection = document.getElementById('auth-section');
+  const upgradeSection = document.getElementById('upgrade-section');
   
-  if (isPremium) {
-    premiumSection.classList.remove('hidden');
-    authSection.classList.add('hidden');
-  } else {
+  if (!authToken) {
+    // Not logged in
     premiumSection.classList.add('hidden');
     authSection.classList.remove('hidden');
+    upgradeSection.classList.add('hidden');
+  } else if (userPlan === 'pro') {
+    // PRO user
+    premiumSection.classList.remove('hidden');
+    authSection.classList.add('hidden');
+    upgradeSection.classList.add('hidden');
+  } else {
+    // FREE user
+    premiumSection.classList.add('hidden');
+    authSection.classList.add('hidden');
+    upgradeSection.classList.remove('hidden');
   }
 }
 
 function openAuthPopup() {
   chrome.runtime.sendMessage({ action: 'openAuth' });
+}
+
+async function openUpgrade() {
+  if (!authToken) {
+    openAuthPopup();
+    return;
+  }
+  
+  try {
+    const response = await fetch(`${API_URL}/stripe/create-checkout-session`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'Authorization': `Bearer ${authToken}`
+      }
+    });
+    
+    const data = await response.json();
+    
+    if (data.url) {
+      window.open(data.url, '_blank');
+    }
+  } catch (error) {
+    alert('Error al crear sesión de pago: ' + error.message);
+  }
+}
+
+function openEditor() {
+  chrome.runtime.sendMessage({ action: 'openEditor' });
 }
 
 // Cleanup

@@ -1,8 +1,8 @@
 {
   "manifest_version": 3,
   "name": "Code Pet 3D",
-  "version": "2.0.0",
-  "description": "Mascota virtual 3D que analiza la calidad de páginas web",
+  "version": "2.1.0",
+  "description": "Mascota virtual 3D que analiza la calidad de páginas web con IA",
   "permissions": [
     "activeTab",
     "storage",
@@ -22,11 +22,17 @@
   },
   "icons": {
     "16": "icons/icon16.jpg"
-
   },
   "web_accessible_resources": [
     {
-      "resources": ["three.min.js", "content.css"],
+      "resources": [
+        "three.min.js", 
+        "content.css", 
+        "success.html", 
+        "editor.html", 
+        "editor.css", 
+        "editor.js"
+      ],
       "matches": ["<all_urls>"]
     }
   ]

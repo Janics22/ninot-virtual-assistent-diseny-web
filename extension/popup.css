@@ -101,7 +101,7 @@ body {
 }
 
 .btn-primary,
-.btn-premium,
+.btn-pro,
 .btn-secondary {
   padding: 14px;
   border: none;
@@ -113,13 +113,13 @@ body {
 }
 
 .btn-primary,
-.btn-premium {
+.btn-pro {
   background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
   color: white;
 }
 
 .btn-primary:hover,
-.btn-premium:hover {
+.btn-pro:hover {
   transform: translateY(-2px);
   box-shadow: 0 4px 12px rgba(102, 126, 234, 0.4);
 }
@@ -184,7 +184,7 @@ body {
   display: inline-block;
 }
 
-.plan.premium {
+.plan.pro {
   background: linear-gradient(135deg, #ffd89b 0%, #19547b 100%);
   color: white;
 }
@@ -221,7 +221,7 @@ body {
   text-align: center;
 }
 
-.btn-premium {
+.btn-pro {
   background: white;
   color: #667eea;
 }
@@ -232,13 +232,13 @@ body {
   margin-bottom: 20px;
 }
 
-#premium-view h2 {
+#pro-view h2 {
   text-align: center;
   color: #333;
   margin-bottom: 12px;
 }
 
-#premium-view p {
+#pro-view p {
   text-align: center;
   color: #666;
   margin-bottom: 24px;

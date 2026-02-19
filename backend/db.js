@@ -7,8 +7,12 @@ const pool = new Pool({
 });
 
 pool.on('error', (err) => {
-  console.error('Error inesperado en el cliente de PostgreSQL', err);
+  console.error('❌ Error inesperado en PostgreSQL:', err);
   process.exit(-1);
+});
+
+pool.on('connect', () => {
+  console.log('✅ PostgreSQL connected');
 });
 
 module.exports = pool;
